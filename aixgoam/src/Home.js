@@ -1,4 +1,6 @@
 import { useState } from "react";
+import AudioRecorder from "./components/AudioRecorder";
+import AudioMonitorRealTime from "./components/AudioMonitorRealTime";
 
 function Home() {
     return (
@@ -11,6 +13,13 @@ function Home() {
     
         <div className="row">
             <div className="col">
+                <AudioRecorder />
+            </div>
+        </div>
+
+        <div className="row">
+            <div className="col">
+                <AudioMonitorRealTime />
             </div>
         </div>
         </div>
