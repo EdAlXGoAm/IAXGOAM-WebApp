@@ -11,11 +11,11 @@ function Home() {
             </div>
         </div>
     
-        <div className="row">
+        {/* <div className="row">
             <div className="col">
                 <AudioRecorder />
             </div>
-        </div>
+        </div> */}
 
         <div className="row">
             <div className="col">

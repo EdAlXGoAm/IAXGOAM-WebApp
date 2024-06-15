@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 
+const baseURL = `${process.env.REACT_APP_API_URL}/api/gpt4o/request/`;
+
 const AudioRecorder = () => {
   const [recording, setRecording] = useState(false);
   const [audioURLs, setAudioURLs] = useState([]);
@@ -14,6 +16,7 @@ const AudioRecorder = () => {
   const volumeSumRef = useRef(0);
   const volumeCountRef = useRef(0);
   const silenceTimerRef = useRef(null);
+  const audioRef = useRef(null);
 
   useEffect(() => {
     if (recording) {
@@ -56,7 +59,7 @@ const AudioRecorder = () => {
     audioChunksRef.current = [];
   };
 
-  const stopInterventionRecording = () => {
+  const stopInterventionRecording = async () => {
     mediaRecorderRef.current.stop();
   };
 
@@ -74,12 +77,40 @@ const AudioRecorder = () => {
       audioChunksRef.current.push(event.data);
     };
 
-    mediaRecorderRef.current.onstop = () => {
+    mediaRecorderRef.current.onstop = async () => {
       const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
       const audioURL = URL.createObjectURL(audioBlob);
       setAudioURLs((prevURLs) => [...prevURLs, audioURL]);
       setAverageVolume(volumeSumRef.current / volumeCountRef.current);
       audioChunksRef.current = [];
+
+      // Enviar audio al servidor
+      const formData = new FormData();
+      formData.append('file', audioBlob, 'intervention.wav');
+
+      try {
+        const response = await fetch(baseURL, {
+          method: 'POST',
+          body: formData,
+        });
+        const result = await response.json();
+        console.log('Server response:', result);
+
+        // Convertir el audio base64 a Blob y crear URL
+        const audioData = atob(result.audio);
+        const audioArray = new Uint8Array(audioData.length).map((_, i) => audioData.charCodeAt(i));
+        const audioResponseBlob = new Blob([audioArray], { type: 'audio/mp3' });
+        const audioResponseURL = URL.createObjectURL(audioResponseBlob);
+
+        // Añadir el audio recibido y reproducirlo automáticamente
+        setAudioURLs((prevURLs) => [...prevURLs, audioResponseURL]);
+        if (audioRef.current) {
+          audioRef.current.src = audioResponseURL;
+          audioRef.current.play();
+        }
+      } catch (error) {
+        console.error('Error sending audio to server:', error);
+      }
     };
 
     setRecording(true);
@@ -103,6 +134,7 @@ const AudioRecorder = () => {
       <div>Volume: {volume.toFixed(2)}</div>
       {!recording && averageVolume > 0 && <div>Average Volume: {averageVolume.toFixed(2)}</div>}
       <div>Voice Activity: {voiceActivity}</div>
+      <audio ref={audioRef} controls />
     </div>
   );
 };
