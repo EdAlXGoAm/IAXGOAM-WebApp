@@ -96,8 +96,8 @@ const AudioRecorder = () => {
         const result = await response.json();
         console.log('Server response:', result);
 
-        if (result.transcript === 'No Lindy detected in the audio') {
-            alert('No Lindy detected in the audio');
+        if (result.transcript === 'No Luna detected in the audio') {
+            alert('No Luna detected in the audio');
             return;
         }
         // Convertir el audio base64 a Blob y crear URL
