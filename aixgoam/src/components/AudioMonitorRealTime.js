@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ToastContainer, toast} from 'react-toastify';
+import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 const baseURL = `${process.env.REACT_APP_API_URL}/api/gpt4o/request/`;
@@ -19,6 +19,7 @@ const AudioRecorder = () => {
   const volumeCountRef = useRef(0);
   const silenceTimerRef = useRef(null);
   const audioRef = useRef(null);
+  const streamRef = useRef(null);
 
   useEffect(() => {
     if (recording) {
@@ -67,6 +68,7 @@ const AudioRecorder = () => {
 
   const handleStartRecording = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    streamRef.current = stream; // Guardar el flujo de medios
     mediaRecorderRef.current = new MediaRecorder(stream);
     audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
     const source = audioContextRef.current.createMediaStreamSource(stream);
@@ -97,10 +99,10 @@ const AudioRecorder = () => {
         });
         const result = await response.json();
         console.log('Server response:', result);
-
+        console.log(result.transcript)
         if (result.transcript === 'No Luna detected in the audio') {
-            toast('No Luna detected in the audio');
-            return;
+          toast('No Luna detected in the audio');
+          return;
         }
         // Convertir el audio base64 a Blob y crear URL
         const audioData = atob(result.audio);
@@ -126,6 +128,10 @@ const AudioRecorder = () => {
     if (mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
+    // Detener todas las pistas del flujo de medios
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+    }
     setRecording(false);
   };
 
@@ -141,6 +147,7 @@ const AudioRecorder = () => {
       {!recording && averageVolume > 0 && <div>Average Volume: {averageVolume.toFixed(2)}</div>}
       <div>Voice Activity: {voiceActivity}</div>
       <audio ref={audioRef} controls />
+      <ToastContainer />
     </div>
   );
 };
