@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { ToastContainer, toast} from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const baseURL = `${process.env.REACT_APP_API_URL}/api/gpt4o/request/`;
 
@@ -28,7 +30,7 @@ const AudioRecorder = () => {
         volumeSumRef.current += avg;
         volumeCountRef.current += 1;
 
-        if (avg > 30) {
+        if (avg > 40) {
           if (voiceActivity === 'voiceActivityEnd') {
             setVoiceActivity('voiceActivityStart');
             startInterventionRecording();
@@ -43,7 +45,7 @@ const AudioRecorder = () => {
               silenceTimerRef.current = setTimeout(() => {
                 setVoiceActivity('voiceActivityEnd');
                 stopInterventionRecording();
-              }, 1000);
+              }, 2000);
             }
           }
         }
@@ -97,7 +99,7 @@ const AudioRecorder = () => {
         console.log('Server response:', result);
 
         if (result.transcript === 'No Luna detected in the audio') {
-            alert('No Luna detected in the audio');
+            toast('No Luna detected in the audio');
             return;
         }
         // Convertir el audio base64 a Blob y crear URL
