@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-const baseURL = `${process.env.REACT_APP_API_URL}/api/gpt4o/request/`;
+const whisperWordBaseURL = `${process.env.REACT_APP_API_URL}/api/whisperWord/request`;
+const gpt4oBaseURL = `${process.env.REACT_APP_API_URL}/api/gpt4o/request`;
 
 const AudioRecorder = () => {
     const [recording, setRecording] = useState(false);
@@ -10,6 +11,9 @@ const AudioRecorder = () => {
     const [volume, setVolume] = useState(0);
     const [averageVolume, setAverageVolume] = useState(0);
     const [voiceActivity, setVoiceActivity] = useState('voiceActivityEnd');
+    const [activated, setActivated] = useState(false);
+    const [activationTimer, setActivationTimer] = useState(null);
+    const activatedRef = useRef(activated);
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
     const audioContextRef = useRef(null);
@@ -22,6 +26,10 @@ const AudioRecorder = () => {
     const streamRef = useRef(null);
 
     useEffect(() => {
+        activatedRef.current = activated;
+    }, [activated]);
+
+    useEffect(() => {
         if (recording) {
             const updateVolume = () => {
                 analyserRef.current.getByteFrequencyData(dataArrayRef.current);
@@ -31,12 +39,11 @@ const AudioRecorder = () => {
                 volumeSumRef.current += avg;
                 volumeCountRef.current += 1;
 
-                if (avg > 35) {
+                if (avg > 25) {
                     if (voiceActivity === 'voiceActivityEnd') {
                         setVoiceActivity('voiceActivityStart');
                         startInterventionRecording();
                     }
-                } else if (avg > 20) {
                     if (silenceTimerRef.current) {
                         clearTimeout(silenceTimerRef.current);
                         silenceTimerRef.current = null;
@@ -69,7 +76,7 @@ const AudioRecorder = () => {
 
     const handleStartRecording = async () => {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        streamRef.current = stream; // Guardar el flujo de medios
+        streamRef.current = stream;
         mediaRecorderRef.current = new MediaRecorder(stream);
         audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
         const source = audioContextRef.current.createMediaStreamSource(stream);
@@ -92,26 +99,31 @@ const AudioRecorder = () => {
             // Enviar audio al servidor
             const formData = new FormData();
             formData.append('file', audioBlob, 'intervention.wav');
-
+            const url = activatedRef.current ? gpt4oBaseURL : whisperWordBaseURL;
             try {
-                const response = await fetch(baseURL, {
+                const response = await fetch(url, {
                     method: 'POST',
                     body: formData,
                 });
                 const result = await response.json();
                 console.log('Server response:', result);
-                console.log(result.transcript)
-                if (result.transcript === 'No Luna detected in the audio') {
-                    toast('No Luna detected in the audio');
-                    return;
+                console.log(result.transcript);
+
+                if (url === whisperWordBaseURL) {
+                    if (result.response === 'activation') {
+                        activateRecording();
+                    }
+                } else {
+                    if (result.transcript.toLowerCase().includes('bye') || result.transcript.toLowerCase().includes('adios')) {
+                        resetActivation();
+                    }
                 }
-                // Convertir el audio base64 a Blob y crear URL
+
                 const audioData = atob(result.audio);
                 const audioArray = new Uint8Array(audioData.length).map((_, i) => audioData.charCodeAt(i));
                 const audioResponseBlob = new Blob([audioArray], { type: 'audio/mp3' });
                 const audioResponseURL = URL.createObjectURL(audioResponseBlob);
 
-                // Añadir el audio recibido y reproducirlo automáticamente
                 setAudioURLs((prevURLs) => [...prevURLs, audioResponseURL]);
                 if (audioRef.current) {
                     audioRef.current.src = audioResponseURL;
@@ -129,15 +141,43 @@ const AudioRecorder = () => {
         if (mediaRecorderRef.current.state !== 'inactive') {
             mediaRecorderRef.current.stop();
         }
-        // Detener todas las pistas del flujo de medios
         if (streamRef.current) {
             streamRef.current.getTracks().forEach(track => track.stop());
         }
         setRecording(false);
     };
 
+    const activateRecording = () => {
+        setActivated(true);
+        const timer = setTimeout(() => {
+            resetActivation();
+        }, 5 * 60 * 1000);
+        setActivationTimer(timer);
+    };
+
+    const resetActivation = () => {
+        setActivated(false);
+        if (activationTimer) {
+            clearTimeout(activationTimer);
+            setActivationTimer(null);
+        }
+    };
+
+    const getBackgroundColor = () => {
+        if (voiceActivity === 'voiceActivityStart' && !activated) {
+            return 'yellow';
+        } else if (voiceActivity === 'voiceActivityStart' && activated) {
+            return 'green';
+        } else if (voiceActivity === 'voiceActivityEnd' && !activated) {
+            return '#f6f6f6';
+        } else if (voiceActivity === 'voiceActivityEnd' && activated) {
+            return 'blue';
+        }
+        return 'white';
+    };
+
     return (
-        <div>
+        <div style={{ backgroundColor: getBackgroundColor(), padding: '20px' }}>
             <button onClick={recording ? handleStopRecording : handleStartRecording}>
                 {recording ? 'Stop Recording' : 'Start Recording'}
             </button>
@@ -147,6 +187,7 @@ const AudioRecorder = () => {
             <div>Volume: {volume.toFixed(2)}</div>
             {!recording && averageVolume > 0 && <div>Average Volume: {averageVolume.toFixed(2)}</div>}
             <div>Voice Activity: {voiceActivity}</div>
+            <div>Activated: {activated ? 'Yes' : 'No'}</div>
             <audio ref={audioRef} controls />
             <ToastContainer />
         </div>
